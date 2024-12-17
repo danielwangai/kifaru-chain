@@ -46,3 +46,18 @@ func TestBlock_Encode_Decode(t *testing.T) {
 	assert.Nil(t, blockDecode.DecodeBinary(buf))
 	assert.Equal(t, block, blockDecode)
 }
+
+func TestBlock_Hash(t *testing.T) {
+	block := &Block{
+		Header:       header1,
+		Transactions: nil,
+	}
+	// before hashing, hash value is zero
+	assert.True(t, block.hash.IsZero())
+
+	// hash block
+	hash := block.Hash()
+
+	assert.NotNil(t, hash)
+	assert.False(t, block.hash.IsZero())
+}
