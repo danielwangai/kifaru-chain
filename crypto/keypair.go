@@ -3,14 +3,16 @@ package crypto
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"fmt"
 	"io"
 )
 
 const (
-	privKeyLen = 64 // length of the private key
-	seedLen    = 32
-	pubKeyLen  = 32 // length of the public key
-	addressLen = 20
+	privKeyLen   = 64 // length of the private key
+	seedLen      = 32
+	pubKeyLen    = 32 // length of the public key
+	addressLen   = 20
+	signatureLen = 64
 )
 
 type PrivateKey struct {
@@ -19,6 +21,13 @@ type PrivateKey struct {
 
 func (p *PrivateKey) Bytes() []byte {
 	return p.key
+}
+
+// Sign uses private key to sign
+func (p *PrivateKey) Sign(msg []byte) *Signature {
+	return &Signature{
+		value: ed25519.Sign(p.key, msg),
+	}
 }
 
 func GeneratePrivateKey() *PrivateKey {
@@ -60,4 +69,23 @@ func (p *PublicKey) Address() Address {
 }
 
 type Signature struct {
+	value []byte
+}
+
+func (s *Signature) Bytes() []byte {
+	return s.value
+}
+
+func SignatureFromBytes(b []byte) *Signature {
+	fmt.Println("Len: ", len(b))
+	if len(b) != signatureLen {
+		panic("invalid signature length, must be 64")
+	}
+
+	return &Signature{value: b}
+}
+
+// Verify checks if the signature is valid
+func (s *Signature) Verify(pubKey *PublicKey, msg []byte) bool {
+	return ed25519.Verify(pubKey.key, msg, s.value)
 }
