@@ -2,8 +2,8 @@ package crypto
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/binary"
+	"encoding/gob"
+	"errors"
 	"github.com/danielwangai/kifaru-block/types"
 	"io"
 )
@@ -16,79 +16,61 @@ type Header struct {
 	Nonce     uint64
 }
 
-func (h *Header) EncodeBinary(w io.Writer) error {
-	if err := binary.Write(w, binary.LittleEndian, &h.Version); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, &h.PrevBlock); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, &h.Timestamp); err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.LittleEndian, &h.Height); err != nil {
-		return err
-	}
-	return binary.Write(w, binary.LittleEndian, &h.Nonce)
-}
-
-func (h *Header) DecodeBinary(r io.Reader) error {
-	if err := binary.Read(r, binary.LittleEndian, &h.Version); err != nil {
-		return err
-	}
-	if err := binary.Read(r, binary.LittleEndian, &h.PrevBlock); err != nil {
-		return err
-	}
-	if err := binary.Read(r, binary.LittleEndian, &h.Timestamp); err != nil {
-		return err
-	}
-	if err := binary.Read(r, binary.LittleEndian, &h.Height); err != nil {
-		return err
-	}
-	return binary.Read(r, binary.LittleEndian, &h.Nonce)
-}
-
 type Block struct {
-	Header       Header
+	Header       *Header
 	Transactions []Transaction
+	Validator    *PublicKey
+	Signature    *Signature
 	hash         types.Hash
 }
 
-func (b *Block) DecodeBinary(r io.Reader) error {
-	if err := b.Header.DecodeBinary(r); err != nil {
-		return err
+func NewBlock(h *Header, tx []Transaction) *Block {
+	return &Block{
+		Header:       h,
+		Transactions: tx,
+	}
+}
+
+func (b *Block) Encode(w io.Writer, e Encoder[*Block]) error {
+	return e.Encode(w, b)
+}
+func (b *Block) Decode(r io.Reader, d Decoder[*Block]) error {
+	return d.Decode(r, b)
+}
+
+// Sign uses the private key to sign a block
+func (b *Block) Sign(privKey *PrivateKey) {
+	sig := privKey.Sign(b.HashHeader())
+
+	b.Validator = privKey.PublicKey()
+	b.Signature = sig
+}
+
+// Verify checks the validity of the block header's signature
+func (b *Block) Verify() error {
+	if b.Signature == nil {
+		return errors.New("block header has no signature")
 	}
 
-	for _, tx := range b.Transactions {
-		if err := tx.DecodeBinary(r); err != nil {
-			return err
-		}
+	if !b.Signature.Verify(b.Validator, b.HashHeader()) {
+		return errors.New("block header has invalid signature")
 	}
 
 	return nil
 }
 
-func (b *Block) EncodeBinary(w io.Writer) error {
-	if err := b.Header.EncodeBinary(w); err != nil {
-		return err
-	}
-
-	for _, tx := range b.Transactions {
-		if err := tx.EncodeBinary(w); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (b *Block) Hash() types.Hash {
-	buf := &bytes.Buffer{}
-	b.Header.EncodeBinary(buf)
-
+func (b *Block) Hash(hasher Hasher[*Block]) types.Hash {
 	if b.hash.IsZero() {
-		b.hash = types.Hash(sha256.Sum256(buf.Bytes()))
+		b.hash = hasher.Hash(b)
 	}
 
 	return b.hash
+}
+
+func (b *Block) HashHeader() []byte {
+	buf := &bytes.Buffer{}
+	enc := gob.NewEncoder(buf)
+	enc.Encode(b.Header)
+
+	return buf.Bytes()
 }

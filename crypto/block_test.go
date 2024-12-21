@@ -1,63 +1,48 @@
 package crypto
 
 import (
-	"bytes"
 	"github.com/danielwangai/kifaru-block/examples"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
 
-var header1 Header = Header{
-	Version:   1,
-	PrevBlock: examples.RandomHash(),
-	Timestamp: time.Now().UnixNano(),
-	Height:    10,
-	Nonce:     100000,
-}
+var header1 Header = Header{}
 
-func TestHeader_Encode_Decode(t *testing.T) {
-	h := &Header{
+func randomBlock(height uint32) *Block {
+	header := &Header{
 		Version:   1,
 		PrevBlock: examples.RandomHash(),
 		Timestamp: time.Now().UnixNano(),
-		Height:    10,
+		Height:    height,
 		Nonce:     100000,
 	}
-
-	buf := &bytes.Buffer{}
-	assert.Nil(t, h.EncodeBinary(buf))
-
-	hDecode := &Header{}
-	assert.Nil(t, hDecode.DecodeBinary(buf))
-	assert.Equal(t, h, hDecode)
-}
-
-func TestBlock_Encode_Decode(t *testing.T) {
-	block := &Block{
-		Header:       header1,
-		Transactions: nil,
+	tx := Transaction{
+		Data: []byte("hello world"),
 	}
 
-	buf := &bytes.Buffer{}
-	assert.Nil(t, block.EncodeBinary(buf))
-
-	blockDecode := &Block{}
-	assert.Nil(t, blockDecode.DecodeBinary(buf))
-	assert.Equal(t, block, blockDecode)
+	return NewBlock(header, []Transaction{tx})
 }
 
-func TestBlock_Hash(t *testing.T) {
-	block := &Block{
-		Header:       header1,
-		Transactions: nil,
-	}
-	// before hashing, hash value is zero
-	assert.True(t, block.hash.IsZero())
+func TestSignBlock(t *testing.T) {
+	b := randomBlock(0)
+	privKey := GeneratePrivateKey()
+	b.Sign(privKey)
+	assert.Equal(t, b.Validator, privKey.PublicKey())
+	assert.NotNil(t, b.Signature)
+}
 
-	// hash block
-	hash := block.Hash()
+func TestVerifyBlock(t *testing.T) {
+	b := randomBlock(0)
+	privKey := GeneratePrivateKey()
+	b.Sign(privKey)
+	assert.Nil(t, b.Verify())
 
-	assert.NotNil(t, hash)
-	assert.False(t, block.hash.IsZero())
+	// alter block details
+	b.Validator = GeneratePrivateKey().PublicKey() // different public key from the one that signed
+	assert.NotNil(t, b.Verify())
+
+	// alter block height
+	b.Header.Height = 20
+	assert.NotNil(t, b.Verify())
 }
