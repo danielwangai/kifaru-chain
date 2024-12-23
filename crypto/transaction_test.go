@@ -12,11 +12,20 @@ func newTransaction() *Transaction {
 	}
 }
 
+func randomTxWithSignature(t *testing.T) *Transaction {
+	privKey := GeneratePrivateKey()
+	tx := newTransaction()
+	tx.Sign(privKey)
+	assert.NotNil(t, tx.Signature)
+
+	return tx
+}
+
 func TestSignTransaction(t *testing.T) {
 	tx := newTransaction()
 	privKey := GeneratePrivateKey()
 	tx.Sign(privKey)
-	assert.Equal(t, tx.PublicKey, privKey.PublicKey())
+	assert.Equal(t, tx.From, privKey.PublicKey())
 	assert.NotNil(t, tx.Signature)
 }
 
@@ -28,6 +37,6 @@ func TestVerifyTransaction(t *testing.T) {
 
 	//
 	privKey2 := GeneratePrivateKey()
-	tx.PublicKey = privKey2.PublicKey() // change public key
+	tx.From = privKey2.PublicKey() // change public key
 	assert.NotNil(t, tx.Verify())
 }

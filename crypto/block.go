@@ -4,16 +4,26 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
-	"github.com/danielwangai/kifaru-block/types"
 	"io"
+
+	"github.com/danielwangai/kifaru-block/types"
 )
 
 type Header struct {
-	Version   uint32
-	PrevBlock types.Hash
-	Timestamp int64
-	Height    uint32
-	Nonce     uint64
+	Version       uint32
+	PrevBlockHash types.Hash
+	Timestamp     int64
+	Height        uint32
+	Nonce         uint64
+}
+
+// Bytes transforms Header to a byte slice
+func (h *Header) Bytes() []byte {
+	buf := &bytes.Buffer{}
+	enc := gob.NewEncoder(buf)
+	enc.Encode(h)
+
+	return buf.Bytes()
 }
 
 type Block struct {
@@ -40,7 +50,7 @@ func (b *Block) Decode(r io.Reader, d Decoder[*Block]) error {
 
 // Sign uses the private key to sign a block
 func (b *Block) Sign(privKey *PrivateKey) {
-	sig := privKey.Sign(b.HashHeader())
+	sig := privKey.Sign(b.Header.Bytes())
 
 	b.Validator = privKey.PublicKey()
 	b.Signature = sig
@@ -52,25 +62,28 @@ func (b *Block) Verify() error {
 		return errors.New("block header has no signature")
 	}
 
-	if !b.Signature.Verify(b.Validator, b.HashHeader()) {
+	if !b.Signature.Verify(b.Validator, b.Header.Bytes()) {
 		return errors.New("block header has invalid signature")
+	}
+
+	// verify transactions
+	for _, tx := range b.Transactions {
+		if err := tx.Verify(); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (b *Block) Hash(hasher Hasher[*Block]) types.Hash {
+func (b *Block) Hash(hasher Hasher[*Header]) types.Hash {
 	if b.hash.IsZero() {
-		b.hash = hasher.Hash(b)
+		b.hash = hasher.Hash(b.Header)
 	}
 
 	return b.hash
 }
 
-func (b *Block) HashHeader() []byte {
-	buf := &bytes.Buffer{}
-	enc := gob.NewEncoder(buf)
-	enc.Encode(b.Header)
-
-	return buf.Bytes()
+func (b *Block) AddTransaction(tx *Transaction) {
+	b.Transactions = append(b.Transactions, *tx)
 }
