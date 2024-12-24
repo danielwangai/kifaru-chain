@@ -3,12 +3,30 @@ package crypto
 import (
 	"fmt"
 	"io"
+
+	"github.com/danielwangai/kifaru-block/types"
 )
 
 type Transaction struct {
 	Data      []byte
 	From      *PublicKey
 	Signature *Signature
+
+	hash types.Hash // cached tx hash
+}
+
+func NewTransaction(data []byte) *Transaction {
+	return &Transaction{
+		Data: data,
+	}
+}
+
+func (tx *Transaction) Hash(hasher Hasher[*Transaction]) types.Hash {
+	if tx.hash.IsZero() {
+		tx.hash = hasher.Hash(tx)
+	}
+
+	return tx.hash
 }
 
 // Sign signs a transaction
