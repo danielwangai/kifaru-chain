@@ -2,11 +2,13 @@ package crypto
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/sirupsen/logrus"
 )
 
 type Blockchain struct {
+	lock      sync.RWMutex
 	headers   []*Header
 	store     Storage
 	validator Validator
@@ -48,15 +50,24 @@ func (bc *Blockchain) GetHeaderByHeight(height uint32) (*Header, error) {
 		return nil, fmt.Errorf("given height (%d) is greater than the blockchain height", height)
 	}
 
+	bc.lock.Lock()
+	defer bc.lock.Unlock()
+
 	return bc.headers[height], nil
 }
 
 // Height returns the height of the latest block of the entire blockchain
 func (bc *Blockchain) Height() uint32 {
+	bc.lock.RLock()
+	defer bc.lock.RUnlock()
+
 	return uint32(len(bc.headers) - 1)
 }
 
 func (bc *Blockchain) addBlock(b *Block) error {
+	bc.lock.Lock()
+	defer bc.lock.Unlock()
+
 	bc.headers = append(bc.headers, b.Header)
 	logrus.WithFields(logrus.Fields{
 		"height": b.Header.Height,
