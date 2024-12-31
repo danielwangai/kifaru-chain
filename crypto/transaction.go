@@ -12,7 +12,8 @@ type Transaction struct {
 	From      *PublicKey
 	Signature *Signature
 
-	hash types.Hash // cached tx hash
+	hash      types.Hash // cached tx hash
+	firstSeen int64      // timestamp of when this tx was first seen
 }
 
 func NewTransaction(data []byte) *Transaction {
@@ -55,4 +56,11 @@ func (tx *Transaction) EncodeBinary(w io.Writer) error {
 
 func (tx *Transaction) DecodeBinary(r io.Reader) error {
 	return nil
+}
+
+func (tx *Transaction) SetFirstSeen(t int64) {
+	tx.firstSeen = t
+}
+func (tx *Transaction) GetFirstSeen() int64 {
+	return tx.firstSeen
 }

@@ -1,7 +1,10 @@
 package network
 
 import (
+	"strconv"
 	"testing"
+
+	"math/rand"
 
 	"github.com/danielwangai/kifaru-block/crypto"
 	"github.com/stretchr/testify/assert"
@@ -52,4 +55,19 @@ func newTxPool(t *testing.T) *TxPool {
 	p := NewTxPool()
 	assert.Equal(t, p.Len(), 0)
 	return p
+}
+
+func TestSortTransactions(t *testing.T) {
+	p := NewTxPool()
+	txLen := 1000
+	for i := 0; i < txLen; i++ {
+		tx := crypto.NewTransaction([]byte(strconv.FormatInt(int64(i), 10)))
+		tx.SetFirstSeen(int64(i * rand.Intn(10000)))
+		assert.Nil(t, p.Add(tx))
+	}
+	assert.Equal(t, txLen, p.Len())
+	txx := p.Transactions()
+	for i := 0; i < len(txx)-1; i++ {
+		assert.True(t, txx[i].GetFirstSeen() < txx[i+1].GetFirstSeen())
+	}
 }
