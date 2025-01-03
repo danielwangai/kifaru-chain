@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"errors"
-	"io"
 
 	"github.com/danielwangai/kifaru-block/types"
 )
@@ -41,11 +40,12 @@ func NewBlock(h *Header, tx []Transaction) *Block {
 	}
 }
 
-func (b *Block) Encode(w io.Writer, e Encoder[*Block]) error {
-	return e.Encode(w, b)
+func (b *Block) Encode(enc Encoder[*Block]) error {
+	return enc.Encode(b)
 }
-func (b *Block) Decode(r io.Reader, d Decoder[*Block]) error {
-	return d.Decode(r, b)
+
+func (b *Block) Decode(dec Decoder[*Block]) error {
+	return dec.Decode(b)
 }
 
 // Sign uses the private key to sign a block

@@ -26,7 +26,7 @@ func (p *PrivateKey) Bytes() []byte {
 // Sign uses private key to sign
 func (p *PrivateKey) Sign(msg []byte) *Signature {
 	return &Signature{
-		value: ed25519.Sign(p.key, msg),
+		Value: ed25519.Sign(p.key, msg),
 	}
 }
 
@@ -48,32 +48,32 @@ func (p *PrivateKey) PublicKey() *PublicKey {
 	copy(b, p.key[32:])
 
 	return &PublicKey{
-		key: b,
+		Key: b,
 	}
 }
 
 type PublicKey struct {
-	key ed25519.PublicKey
+	Key ed25519.PublicKey
 }
 
 func (p *PublicKey) Bytes() []byte {
-	return p.key
+	return p.Key
 }
 
 // Address returns address from public key
 // address = last 20 characters on the public address
 func (p *PublicKey) Address() Address {
 	return Address{
-		value: p.key[len(p.key)-addressLen:],
+		value: p.Key[len(p.Key)-addressLen:],
 	}
 }
 
 type Signature struct {
-	value []byte
+	Value []byte
 }
 
 func (s *Signature) Bytes() []byte {
-	return s.value
+	return s.Value
 }
 
 func SignatureFromBytes(b []byte) *Signature {
@@ -82,10 +82,10 @@ func SignatureFromBytes(b []byte) *Signature {
 		panic("invalid signature length, must be 64")
 	}
 
-	return &Signature{value: b}
+	return &Signature{Value: b}
 }
 
 // Verify checks if the signature is valid
 func (s *Signature) Verify(pubKey *PublicKey, msg []byte) bool {
-	return ed25519.Verify(pubKey.key, msg, s.value)
+	return ed25519.Verify(pubKey.Key, msg, s.Value)
 }

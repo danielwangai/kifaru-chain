@@ -1,6 +1,8 @@
 package crypto
 
 import (
+	"bytes"
+
 	"github.com/stretchr/testify/assert"
 
 	"testing"
@@ -39,4 +41,15 @@ func TestVerifyTransaction(t *testing.T) {
 	privKey2 := GeneratePrivateKey()
 	tx.From = privKey2.PublicKey() // change public key
 	assert.NotNil(t, tx.Verify())
+}
+
+func TestEncodeDecodeTransaction(t *testing.T) {
+	tx := randomTxWithSignature(t)
+	buf := &bytes.Buffer{}
+	assert.Nil(t, tx.Encode(NewGobTxEncoder(buf)))
+
+	// decode
+	decoded := new(Transaction)
+	assert.Nil(t, decoded.Decode(NewGobTxDecoder(buf)))
+	assert.Equal(t, tx, decoded)
 }
