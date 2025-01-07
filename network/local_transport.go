@@ -1,6 +1,7 @@
 package network
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 )
@@ -12,10 +13,11 @@ type LocalTransport struct {
 	peers     map[NetAddr]*LocalTransport
 }
 
-func NewLocalTransport(addr NetAddr) Transport {
+// NewLocalTransport initializes a LocalTransport instance
+func NewLocalTransport(addr NetAddr) *LocalTransport {
 	return &LocalTransport{
 		addr:      addr,
-		consumeCh: make(chan RPC),
+		consumeCh: make(chan RPC, 1024),
 		peers:     make(map[NetAddr]*LocalTransport),
 	}
 }
@@ -39,20 +41,20 @@ func (t *LocalTransport) Connect(tr Transport) error {
 	return nil
 }
 
-// TODO: get node peers
-//func (t *LocalTransport) Peers() []*Transport {
-//	t.lock.Lock()
-//	defer t.lock.Unlock()
-//
-//	var peers []*Transport
-//	for _, peer := range t.peers {
-//		if p, ok := t.peers[peer.addr]; ok {
-//			peers = append(peers, p)
-//		}
-//	}
-//
-//	return peers
-//}
+// Peers returns a list of a node's peers
+func (t *LocalTransport) Peers() []*LocalTransport {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	var peers []*LocalTransport
+	for _, peer := range t.peers {
+		if p, ok := t.peers[peer.addr]; ok {
+			peers = append(peers, p)
+		}
+	}
+
+	return peers
+}
 
 func (t *LocalTransport) SendMessage(to NetAddr, payload []byte) error {
 	t.lock.RLock()
@@ -65,7 +67,17 @@ func (t *LocalTransport) SendMessage(to NetAddr, payload []byte) error {
 
 	peer.consumeCh <- RPC{
 		From:    t.addr,
-		Payload: payload,
+		Payload: bytes.NewReader(payload),
+	}
+
+	return nil
+}
+
+func (t *LocalTransport) Broadcast(msg []byte) error {
+	for _, peer := range t.peers {
+		if err := t.SendMessage(peer.Addr(), msg); err != nil {
+			return err
+		}
 	}
 
 	return nil
