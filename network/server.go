@@ -12,6 +12,8 @@ import (
 var defaultBlockTime = 5 * time.Second
 
 type ServerOpts struct {
+	ID            string
+	Logger        *logrus.Logger
 	RPCDecodeFunc RPCDecodeFunc
 	RPCProcessor  RPCProcessor
 	Transports    []Transport
@@ -33,6 +35,10 @@ func NewServer(opts ServerOpts) *Server {
 	if opts.BlockTime == time.Duration(0) {
 		opts.BlockTime = defaultBlockTime
 	}
+	if opts.Logger == nil {
+		logger := logrus.New()
+		opts.Logger = logger
+	}
 	if opts.RPCDecodeFunc == nil {
 		opts.RPCDecodeFunc = DefaultRPCDecodeFunc
 	}
@@ -48,6 +54,10 @@ func NewServer(opts ServerOpts) *Server {
 	if opts.RPCProcessor == nil {
 		opts.RPCProcessor = s
 	}
+
+	if s.isValidator {
+		go s.startValidatorBlockProducer()
+	}
 	s.ServerOpts = opts
 
 	return s
@@ -59,7 +69,6 @@ func (s *Server) Start() {
 		s.blockTime = defaultBlockTime
 	}
 	s.InitTransports()
-	ticker := time.NewTicker(s.blockTime)
 
 free:
 	for {
@@ -68,23 +77,28 @@ free:
 			// decode message from rpc
 			msg, err := s.RPCDecodeFunc(rpc)
 			if err != nil {
-				logrus.Error(err)
+				s.Logger.WithError(err)
 			}
 
 			// process message
 			if err := s.RPCProcessor.ProcessMessage(msg); err != nil {
-				logrus.Error(err)
+				s.Logger.WithError(err)
 			}
 		case <-s.quitCh:
 			break free
-		case <-ticker.C:
-			if s.isValidator {
-				s.createNewBlock()
-			}
 		}
 	}
 
-	fmt.Println("Server stopped")
+	s.Logger.Info("Server stopped")
+}
+
+func (s *Server) startValidatorBlockProducer() {
+	ticker := time.NewTicker(s.blockTime)
+	s.Logger.Infof("msg=starting validator, loop blocktime=%s", s.blockTime)
+	for {
+		<-ticker.C
+		s.createNewBlock()
+	}
 }
 
 func (s *Server) createNewBlock() {
@@ -105,9 +119,6 @@ func (s *Server) ProcessMessage(msg *DecodedMessage) error {
 func (s *Server) processTransaction(tx *crypto.Transaction) error {
 	hash := tx.Hash(crypto.TxHasher{})
 	if s.memPool.Has(hash) {
-		logrus.WithFields(logrus.Fields{
-			"hash": hash,
-		}).Info("tx already in mempool")
 		return nil
 	}
 
@@ -117,9 +128,7 @@ func (s *Server) processTransaction(tx *crypto.Transaction) error {
 
 	tx.SetFirstSeen(time.Now().UnixNano())
 
-	logrus.WithFields(logrus.Fields{
-		"hash": hash,
-	}).Info("tx has been added to mempool")
+	s.Logger.Infof("msg=adding new tx to mempool,hash=%s", hash)
 
 	// broadcast to peers
 	go s.broadcastTx(tx)
