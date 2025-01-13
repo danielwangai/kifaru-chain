@@ -2,6 +2,7 @@ package crypto
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
 	"errors"
 
@@ -11,6 +12,7 @@ import (
 type Header struct {
 	Version       uint32
 	PrevBlockHash types.Hash
+	DataHash      types.Hash
 	Timestamp     int64
 	Height        uint32
 	Nonce         uint64
@@ -26,7 +28,7 @@ func (h *Header) Bytes() []byte {
 }
 
 type Block struct {
-	Header       *Header
+	*Header
 	Transactions []Transaction
 	Validator    *PublicKey
 	Signature    *Signature
@@ -73,6 +75,16 @@ func (b *Block) Verify() error {
 		}
 	}
 
+	//verify data hash
+	dataHash, err := HashTransactions(b.Transactions)
+	if err != nil {
+		return err
+	}
+
+	if b.DataHash != dataHash {
+		return errors.New("block data hash does not match")
+	}
+
 	return nil
 }
 
@@ -86,4 +98,19 @@ func (b *Block) Hash(hasher Hasher[*Header]) types.Hash {
 
 func (b *Block) AddTransaction(tx *Transaction) {
 	b.Transactions = append(b.Transactions, *tx)
+}
+
+// HashTransactions computes the hash of transaction(s) in a block
+func HashTransactions(txs []Transaction) (types.Hash, error) {
+	buf := &bytes.Buffer{}
+
+	for _, tx := range txs {
+		if err := tx.Encode(NewGobTxEncoder(buf)); err != nil {
+			return types.Hash{}, err
+		}
+	}
+
+	hash := sha256.Sum256(buf.Bytes())
+
+	return hash, nil
 }

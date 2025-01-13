@@ -22,10 +22,14 @@ func randomBlock(height uint32, prevBlockHash types.Hash) *Block {
 
 func randomBlockWithSignature(t *testing.T, height uint32, prevBlockHash types.Hash) *Block {
 	privKey := GeneratePrivateKey()
-	b := randomBlock(height, prevBlockHash)
-	b.Sign(privKey)
 	tx := randomTxWithSignature(t)
+	b := randomBlock(height, prevBlockHash)
 	b.AddTransaction(tx)
+
+	dataHash, err := HashTransactions(b.Transactions)
+	assert.Nil(t, err)
+	b.Header.DataHash = dataHash
+	b.Sign(privKey)
 	tx.Sign(privKey)
 
 	return b
