@@ -9,13 +9,15 @@ import (
 
 type Blockchain struct {
 	lock      sync.RWMutex
+	logger    *logrus.Logger
 	headers   []*Header
 	store     Storage
 	validator Validator
 }
 
-func NewBlockchain(genesis *Block) (*Blockchain, error) {
+func NewBlockchain(log *logrus.Logger, genesis *Block) (*Blockchain, error) {
 	bc := &Blockchain{
+		logger:  log,
 		headers: []*Header{},
 		store:   NewBlockchainStorage(),
 	}
@@ -69,9 +71,11 @@ func (bc *Blockchain) addBlock(b *Block) error {
 	defer bc.lock.Unlock()
 
 	bc.headers = append(bc.headers, b.Header)
-	logrus.WithFields(logrus.Fields{
-		"height": b.Header.Height,
-		"hash":   b.Hash(BlockHasher{}),
+	bc.logger.WithFields(logrus.Fields{
+		"msg":          "new block",
+		"height":       b.Header.Height,
+		"hash":         b.Hash(BlockHasher{}),
+		"transactions": len(b.Transactions),
 	}).Info("adding new block")
 	return bc.store.Put(b)
 }
