@@ -17,20 +17,24 @@ func randomBlock(height uint32, prevBlockHash types.Hash) *Block {
 		Nonce:         100000,
 	}
 
-	return NewBlock(header, []Transaction{})
+	return NewBlock(header, []*Transaction{})
 }
 
 func randomBlockWithSignature(t *testing.T, height uint32, prevBlockHash types.Hash) *Block {
 	privKey := GeneratePrivateKey()
 	tx := randomTxWithSignature(t)
-	b := randomBlock(height, prevBlockHash)
-	b.AddTransaction(tx)
+	header := &Header{
+		Version:       1,
+		PrevBlockHash: prevBlockHash,
+		Height:        height,
+		Timestamp:     time.Now().UnixNano(),
+	}
 
+	b := NewBlock(header, []*Transaction{tx})
 	dataHash, err := HashTransactions(b.Transactions)
 	assert.Nil(t, err)
 	b.Header.DataHash = dataHash
 	b.Sign(privKey)
-	tx.Sign(privKey)
 
 	return b
 }
@@ -45,8 +49,6 @@ func TestSignBlock(t *testing.T) {
 
 func TestVerifyBlock(t *testing.T) {
 	b := randomBlockWithSignature(t, 0, types.Hash{})
-	privKey := GeneratePrivateKey()
-	b.Sign(privKey)
 	assert.Nil(t, b.Verify())
 
 	// alter block details

@@ -3,9 +3,9 @@ package network
 import (
 	"bytes"
 	"github.com/danielwangai/kifaru-block/crypto"
+	"github.com/danielwangai/kifaru-block/types"
 	"github.com/sirupsen/logrus"
 
-	"fmt"
 	"time"
 )
 
@@ -24,6 +24,7 @@ type ServerOpts struct {
 type Server struct {
 	ServerOpts
 	memPool     *TxPool
+	blockchain  *crypto.Blockchain
 	blockTime   time.Duration
 	isValidator bool
 	rpcCh       chan RPC
@@ -31,7 +32,7 @@ type Server struct {
 }
 
 // NewServer initializes new server
-func NewServer(opts ServerOpts) *Server {
+func NewServer(opts ServerOpts) (*Server, error) {
 	if opts.BlockTime == time.Duration(0) {
 		opts.BlockTime = defaultBlockTime
 	}
@@ -43,9 +44,15 @@ func NewServer(opts ServerOpts) *Server {
 		opts.RPCDecodeFunc = DefaultRPCDecodeFunc
 	}
 
+	chain, err := crypto.NewBlockchain(opts.Logger, genesisBlock())
+	if err != nil {
+		return nil, err
+	}
+
 	s := &Server{
 		ServerOpts:  opts,
 		memPool:     NewTxPool(),
+		blockchain:  chain,
 		blockTime:   opts.BlockTime,
 		isValidator: opts.PrivateKey != nil,
 		rpcCh:       make(chan RPC),
@@ -60,7 +67,7 @@ func NewServer(opts ServerOpts) *Server {
 	}
 	s.ServerOpts = opts
 
-	return s
+	return s, nil
 }
 
 // Start the server
@@ -101,9 +108,31 @@ func (s *Server) startValidatorBlockProducer() {
 	}
 }
 
-func (s *Server) createNewBlock() {
-	// take all transaction, hash and create a new block
-	fmt.Println("create new block")
+// adds new block to the blockchain
+// currently all transactions in the mempool are added to the block.
+// TODO: figure out a how many transactions are to be added to the block
+func (s *Server) createNewBlock() error {
+	currentHeader, err := s.blockchain.GetHeaderByHeight(s.blockchain.Height())
+	if err != nil {
+		return err
+	}
+
+	txs := s.memPool.Transactions()
+
+	block, err := crypto.NewBlockFromPrevHeader(currentHeader, txs)
+	if err != nil {
+		return err
+	}
+
+	block.Sign(s.PrivateKey)
+
+	if err := s.blockchain.AddBlock(block); err != nil {
+		return err
+	}
+
+	s.memPool.Flush()
+
+	return nil
 }
 
 func (s *Server) ProcessMessage(msg *DecodedMessage) error {
@@ -165,4 +194,15 @@ func (s *Server) InitTransports() {
 			}
 		}(tr)
 	}
+}
+
+// temp helpers
+func genesisBlock() *crypto.Block {
+	header := &crypto.Header{
+		Version:   1,
+		DataHash:  types.Hash{},
+		Height:    0,
+		Timestamp: time.Now().UnixNano(),
+	}
+	return crypto.NewBlock(header, []*crypto.Transaction{})
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/gob"
 	"errors"
+	"time"
 
 	"github.com/danielwangai/kifaru-block/types"
 )
@@ -29,17 +30,36 @@ func (h *Header) Bytes() []byte {
 
 type Block struct {
 	*Header
-	Transactions []Transaction
+	Transactions []*Transaction
 	Validator    *PublicKey
 	Signature    *Signature
 	hash         types.Hash
 }
 
-func NewBlock(h *Header, tx []Transaction) *Block {
+func NewBlock(h *Header, txs []*Transaction) *Block {
 	return &Block{
 		Header:       h,
-		Transactions: tx,
+		Transactions: txs,
 	}
+}
+
+// NewBlockFromPrevHeader ...
+// TODO: determine how many transaction fit in a block
+func NewBlockFromPrevHeader(prevHeader *Header, txs []*Transaction) (*Block, error) {
+	dataHash, err := HashTransactions(txs)
+	if err != nil {
+		return nil, err
+	}
+
+	header := &Header{
+		Version:       1,
+		Height:        prevHeader.Height + 1,
+		DataHash:      dataHash,
+		PrevBlockHash: BlockHasher{}.Hash(prevHeader),
+		Timestamp:     time.Now().UnixNano(),
+	}
+
+	return NewBlock(header, txs), nil
 }
 
 func (b *Block) Encode(enc Encoder[*Block]) error {
@@ -97,11 +117,11 @@ func (b *Block) Hash(hasher Hasher[*Header]) types.Hash {
 }
 
 func (b *Block) AddTransaction(tx *Transaction) {
-	b.Transactions = append(b.Transactions, *tx)
+	b.Transactions = append(b.Transactions, tx)
 }
 
 // HashTransactions computes the hash of transaction(s) in a block
-func HashTransactions(txs []Transaction) (types.Hash, error) {
+func HashTransactions(txs []*Transaction) (types.Hash, error) {
 	buf := &bytes.Buffer{}
 
 	for _, tx := range txs {
