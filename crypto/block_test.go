@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"bytes"
 	"github.com/danielwangai/kifaru-block/types"
 	"github.com/stretchr/testify/assert"
 	"testing"
@@ -25,4 +26,14 @@ func TestVerifyBlock(t *testing.T) {
 	// alter block height
 	b.Header.Height = 20
 	assert.NotNil(t, b.Verify())
+}
+
+func TestBlock_EncodeDecode(t *testing.T) {
+	b := RandomBlockWithSignature(t, 0, types.Hash{})
+	buf := &bytes.Buffer{}
+	assert.Nil(t, b.Encode(NewGobBlockEncoder(buf)))
+
+	bDecode := new(Block)
+	assert.Nil(t, bDecode.Decode(NewGobBlockDecoder(buf)))
+	assert.Equal(t, b, bDecode)
 }

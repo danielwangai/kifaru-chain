@@ -15,7 +15,6 @@ type GobTxEncoder struct {
 }
 
 func NewGobTxEncoder(w io.Writer) *GobTxEncoder {
-	gob.Register(elliptic.P256)
 	return &GobTxEncoder{
 		w: w,
 	}
@@ -44,4 +43,36 @@ func NewGobTxDecoder(r io.Reader) *GobTxDecoder {
 func (e *GobTxDecoder) Decode(tx *Transaction) error {
 	dec := gob.NewDecoder(e.r)
 	return dec.Decode(tx)
+}
+
+type GobBlockEncoder struct {
+	w io.Writer
+}
+
+func NewGobBlockEncoder(w io.Writer) *GobBlockEncoder {
+	return &GobBlockEncoder{
+		w: w,
+	}
+}
+
+func (e *GobBlockEncoder) Encode(block *Block) error {
+	return gob.NewEncoder(e.w).Encode(block)
+}
+
+type GobBlockDecoder struct {
+	r io.Reader
+}
+
+func NewGobBlockDecoder(r io.Reader) *GobBlockDecoder {
+	return &GobBlockDecoder{
+		r: r,
+	}
+}
+
+func (d *GobBlockDecoder) Decode(block *Block) error {
+	return gob.NewDecoder(d.r).Decode(block)
+}
+
+func init() {
+	gob.Register(elliptic.P256)
 }
