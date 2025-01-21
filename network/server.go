@@ -2,6 +2,7 @@ package network
 
 import (
 	"bytes"
+
 	"github.com/danielwangai/kifaru-block/crypto"
 	"github.com/danielwangai/kifaru-block/types"
 	"github.com/sirupsen/logrus"
@@ -51,7 +52,7 @@ func NewServer(opts ServerOpts) (*Server, error) {
 
 	s := &Server{
 		ServerOpts:  opts,
-		memPool:     NewTxPool(),
+		memPool:     NewTxPool(1000),
 		blockchain:  chain,
 		blockTime:   opts.BlockTime,
 		isValidator: opts.PrivateKey != nil,
@@ -117,7 +118,7 @@ func (s *Server) createNewBlock() error {
 		return err
 	}
 
-	txs := s.memPool.Transactions()
+	txs := s.memPool.Pending()
 
 	block, err := crypto.NewBlockFromPrevHeader(currentHeader, txs)
 	if err != nil {
@@ -130,7 +131,9 @@ func (s *Server) createNewBlock() error {
 		return err
 	}
 
-	s.memPool.Flush()
+	s.memPool.ClearPending()
+
+	go s.broadcastBlock(block)
 
 	return nil
 }
@@ -139,6 +142,8 @@ func (s *Server) ProcessMessage(msg *DecodedMessage) error {
 	switch t := msg.Data.(type) {
 	case *crypto.Transaction:
 		return s.processTransaction(t)
+	case *crypto.Block:
+		return s.processBlock(t)
 	}
 
 	return nil
@@ -147,7 +152,7 @@ func (s *Server) ProcessMessage(msg *DecodedMessage) error {
 // handles checks before adding a new transaction to the mempool
 func (s *Server) processTransaction(tx *crypto.Transaction) error {
 	hash := tx.Hash(crypto.TxHasher{})
-	if s.memPool.Has(hash) {
+	if s.memPool.Contains(hash) {
 		return nil
 	}
 
@@ -155,14 +160,22 @@ func (s *Server) processTransaction(tx *crypto.Transaction) error {
 		return err
 	}
 
-	tx.SetFirstSeen(time.Now().UnixNano())
-
-	s.Logger.Infof("msg=adding new tx to mempool,hash=%s", hash)
+	s.Logger.Infof("msg=adding new tx to mempool,hash=%s, mempoolPending: %d", hash, s.memPool.PendingCount())
 
 	// broadcast to peers
 	go s.broadcastTx(tx)
 
-	return s.memPool.Add(tx)
+	s.memPool.Add(tx)
+
+	return nil
+}
+
+func (s *Server) processBlock(b *crypto.Block) error {
+	if err := s.blockchain.AddBlock(b); err != nil {
+		return err
+	}
+	go s.broadcastBlock(b)
+	return nil
 }
 
 func (s *Server) broadcast(msg []byte) error {
@@ -186,6 +199,15 @@ func (s *Server) broadcastTx(tx *crypto.Transaction) error {
 	return s.broadcast(msg.Bytes())
 }
 
+func (s *Server) broadcastBlock(b *crypto.Block) error {
+	buf := &bytes.Buffer{}
+	if err := b.Encode(crypto.NewGobBlockEncoder(buf)); err != nil {
+		return err
+	}
+	msg := NewMessage(MessageTypeBlock, buf.Bytes())
+	return s.broadcast(msg.Bytes())
+}
+
 func (s *Server) InitTransports() {
 	for _, tr := range s.Transports {
 		go func(tr Transport) {
@@ -202,7 +224,7 @@ func genesisBlock() *crypto.Block {
 		Version:   1,
 		DataHash:  types.Hash{},
 		Height:    0,
-		Timestamp: time.Now().UnixNano(),
+		Timestamp: 1691622800,
 	}
 	return crypto.NewBlock(header, []*crypto.Transaction{})
 }

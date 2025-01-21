@@ -3,10 +3,9 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"time"
-
-	"math/rand"
 
 	"github.com/danielwangai/kifaru-block/crypto"
 	"github.com/danielwangai/kifaru-block/network"
@@ -15,37 +14,65 @@ import (
 
 func main() {
 	fmt.Println("Kifaru Chain")
-	// local node
 	trLocal := network.NewLocalTransport("LocalTR")
-	// remote node
-	trRemote := network.NewLocalTransport("RemoteTR")
+	trRemote1 := network.NewLocalTransport("RemoteTR1")
+	trRemote2 := network.NewLocalTransport("RemoteTR2")
+	trRemote3 := network.NewLocalTransport("RemoteTR3")
 
 	// connect nodes
-	trLocal.Connect(trRemote)
-	trRemote.Connect(trLocal)
+	trLocal.Connect(trRemote1)
+	trRemote1.Connect(trRemote2)
+	trRemote2.Connect(trRemote3)
+	trRemote1.Connect(trLocal)
+
+	initRemoteServers([]network.Transport{trRemote1, trRemote2, trRemote3})
 
 	go func() {
 		for {
 			// send message from remote to local node
-			if err := sendTransaction(trRemote, trLocal.Addr()); err != nil {
+			if err := sendTransaction(trRemote1, trLocal.Addr()); err != nil {
 				logrus.Error(err)
 			}
-			time.Sleep(time.Second)
+			time.Sleep(2 * time.Second)
 		}
 	}()
 
+	go func() {
+		time.Sleep(7 * time.Second)
+		trLate := network.NewLocalTransport("LATE_REMOTE")
+		trRemote3.Connect(trLate)
+		lateServer := makeServer(string(trLate.Addr()), trLate, nil)
+		go lateServer.Start()
+	}()
+
+	// start local server
 	privKey := crypto.GeneratePrivateKey()
 
-	opts := network.ServerOpts{
-		ID:         "LOCAL",
-		Transports: []network.Transport{trLocal},
-		PrivateKey: privKey,
+	localServer := makeServer("LOCAL", trLocal, privKey)
+	localServer.Start()
+}
+
+func initRemoteServers(trs []network.Transport) {
+	for i, tr := range trs {
+		id := fmt.Sprintf("REMOTE-%d", i)
+		s := makeServer(id, tr, nil)
+		go s.Start()
 	}
+}
+
+func makeServer(id string, tr network.Transport, pk *crypto.PrivateKey) *network.Server {
+	opts := network.ServerOpts{
+		ID:         id,
+		Transports: []network.Transport{tr},
+		PrivateKey: pk,
+	}
+
 	server, err := network.NewServer(opts)
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	server.Start()
+
+	return server
 }
 
 func sendTransaction(tr network.Transport, to network.NetAddr) error {

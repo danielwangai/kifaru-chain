@@ -11,8 +11,7 @@ type Transaction struct {
 	From      *PublicKey
 	Signature *Signature
 
-	hash      types.Hash // cached tx hash
-	firstSeen int64      // timestamp of when this tx was first seen
+	hash types.Hash // cached tx hash
 }
 
 func NewTransaction(data []byte) *Transaction {
@@ -55,11 +54,4 @@ func (tx *Transaction) Encode(enc Encoder[*Transaction]) error {
 
 func (tx *Transaction) Decode(dec Decoder[*Transaction]) error {
 	return dec.Decode(tx)
-}
-
-func (tx *Transaction) SetFirstSeen(t int64) {
-	tx.firstSeen = t
-}
-func (tx *Transaction) GetFirstSeen() int64 {
-	return tx.firstSeen
 }
