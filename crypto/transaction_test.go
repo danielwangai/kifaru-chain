@@ -14,15 +14,6 @@ func newTransaction() *Transaction {
 	}
 }
 
-func randomTxWithSignature(t *testing.T) *Transaction {
-	privKey := GeneratePrivateKey()
-	tx := newTransaction()
-	tx.Sign(privKey)
-	assert.NotNil(t, tx.Signature)
-
-	return tx
-}
-
 func TestSignTransaction(t *testing.T) {
 	tx := newTransaction()
 	privKey := GeneratePrivateKey()
@@ -44,7 +35,7 @@ func TestVerifyTransaction(t *testing.T) {
 }
 
 func TestEncodeDecodeTransaction(t *testing.T) {
-	tx := randomTxWithSignature(t)
+	tx := RandomTxWithSignature(t, []byte("hello world"))
 	buf := &bytes.Buffer{}
 	assert.Nil(t, tx.Encode(NewGobTxEncoder(buf)))
 

@@ -1,24 +1,17 @@
 package crypto
 
 import (
+	"github.com/sirupsen/logrus"
 	"testing"
 
 	"github.com/danielwangai/kifaru-block/types"
 	"github.com/stretchr/testify/assert"
 )
 
-func blockWithSignature(t *testing.T, height uint32, prevBlockHash types.Hash) *Block {
-	privKey := GeneratePrivateKey()
-	b := randomBlock(height, prevBlockHash)
-	b.Sign(privKey)
-	assert.NotNil(t, b.Signature)
-	assert.Equal(t, privKey.PublicKey(), b.Validator)
-	return b
-}
-
 func newBlockchainWithGenesis(t *testing.T) *Blockchain {
-	b := blockWithSignature(t, 0, types.Hash{})
-	bc, err := NewBlockchain(b)
+	b := RandomBlockWithSignature(t, 0, types.Hash{})
+	log := logrus.New()
+	bc, err := NewBlockchain(log, b)
 	assert.Nil(t, err)
 	return bc
 }
@@ -42,7 +35,7 @@ func TestAddBlock(t *testing.T) {
 
 	// add another block
 	prevBlockHash := getPrevBlockHash(t, bc, 1)
-	b1 := randomBlockWithSignature(t, 1, prevBlockHash)
+	b1 := RandomBlockWithSignature(t, 1, prevBlockHash)
 
 	err := bc.AddBlock(b1)
 	assert.Nil(t, err)
@@ -51,7 +44,7 @@ func TestAddBlock(t *testing.T) {
 
 	// fails to add block at height already containing a block
 	prevBlockHash1 := getPrevBlockHash(t, bc, b1.Header.Height)
-	b2 := blockWithSignature(t, 1, prevBlockHash1)
+	b2 := RandomBlockWithSignature(t, 1, prevBlockHash1)
 	b2.Header.PrevBlockHash = b1.hash
 	err = bc.AddBlock(b2)
 	assert.NotNil(t, err)
@@ -64,6 +57,6 @@ func TestBlockTooHigh(t *testing.T) {
 	assert.NotNil(t, bc)
 
 	// add block at a height higher than the next available slot
-	b1 := blockWithSignature(t, 2, types.Hash{})
+	b1 := RandomBlockWithSignature(t, 2, types.Hash{})
 	assert.NotNil(t, bc.AddBlock(b1))
 }

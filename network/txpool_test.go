@@ -1,85 +1,55 @@
 package network
 
 import (
-	"strconv"
-	"testing"
-
-	"math/rand"
-
 	"github.com/danielwangai/kifaru-block/crypto"
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
-func TestTxPoolAddTransaction(t *testing.T) {
-	p := newTxPool(t)
+func TestTxPoolAdd(t *testing.T) {
+	p := NewTxPool(1)
+	assert.Equal(t, 0, p.PendingCount())
+	assert.Equal(t, 0, p.AllTxCount())
 
-	tx := crypto.NewTransaction([]byte("hello world"))
+	tx := crypto.RandomTxWithSignature(t, []byte("hello world"))
 	p.Add(tx)
-	assert.Equal(t, 1, p.Len())
 
-	txHash := tx.Hash(crypto.TxHasher{})
-	assert.True(t, p.Has(txHash))
+	assert.Equal(t, 1, p.PendingCount())
+	assert.Equal(t, 1, p.AllTxCount())
+
+	txHash := tx.Hash(&crypto.TxHasher{})
+	assert.True(t, p.all.Contains(txHash))
 }
 
-func TestTxPoolFlushTransaction(t *testing.T) {
-	p := newTxPool(t)
+func TestTxPool_Prune(t *testing.T) {
+	// maximum number of transactions in pool is 1
+	p := NewTxPool(1)
 
-	// add transaction
-	tx := crypto.NewTransaction([]byte("hello world"))
-	p.Add(tx)
-	assert.Equal(t, 1, p.Len())
+	tx1 := crypto.RandomTxWithSignature(t, []byte("hello world"))
+	p.Add(tx1)
+	assert.Equal(t, 1, p.AllTxCount())
 
-	p.Flush()
-	assert.Equal(t, 0, p.Len())
+	txHash1 := tx1.Hash(&crypto.TxHasher{})
+	assert.True(t, p.all.Contains(txHash1))
+
+	// add another transaction. expect original tx to be pruned
+	tx2 := crypto.RandomTxWithSignature(t, []byte("hello world 1"))
+	p.Add(tx2)
+
+	assert.Equal(t, 1, p.AllTxCount())
+
+	// transaction count remains the at maximum
+	assert.Equal(t, 1, p.all.Count())
 }
 
-//func TestTxPoolHandleTransaction(t *testing.T) {
-//opts := ServerOpts{}
-//s := NewServer(opts)
-//
-//p := newTxPool(t)
-//s.memPool = p
-//tx := crypto.NewTransaction([]byte("hello world"))
-//
-//_ = s.RPCDecodeFunc(tx)
-//assert.Equal(t, 0, s.memPool.Len())
-//
-//// sign transaction
-//privKey := crypto.GeneratePrivateKey()
-//tx.Sign(privKey)
-//_ = s.ProcessTransaction("Remote", tx)
-//assert.Equal(t, 1, p.Len())
+func TestTxPool_ClearPending(t *testing.T) {
+	p := NewTxPool(1)
 
-//privKey := crypto.GeneratePrivateKey()
-//data := []byte(strconv.FormatInt(int64(rand.Intn(1000000000)), 10))
-//tx := crypto.NewTransaction(data)
-//tx.Sign(privKey)
-//buf := &bytes.Buffer{}
-//assert.Nil(t, tx.Encode(crypto.NewGobTxEncoder(buf)))
-//
-//msg := NewMessage(MessageTypeTx, buf.Bytes())
-//}
+	tx1 := crypto.RandomTxWithSignature(t, []byte("hello world"))
+	p.Add(tx1)
+	assert.Equal(t, 1, p.PendingCount())
 
-func newTxPool(t *testing.T) *TxPool {
-	p := NewTxPool()
-	assert.Equal(t, p.Len(), 0)
-	return p
-}
-
-func TestSortTransactions(t *testing.T) {
-	p := NewTxPool()
-	txLen := 1000
-
-	for i := 0; i < txLen; i++ {
-		tx := crypto.NewTransaction([]byte(strconv.FormatInt(int64(i), 10)))
-		tx.SetFirstSeen(int64(i * rand.Intn(10000)))
-		assert.Nil(t, p.Add(tx))
-	}
-
-	assert.Equal(t, txLen, p.Len())
-
-	txx := p.Transactions()
-	for i := 0; i < len(txx)-1; i++ {
-		assert.True(t, txx[i].GetFirstSeen() < txx[i+1].GetFirstSeen())
-	}
+	// clear pending
+	p.ClearPending()
+	assert.Equal(t, 0, p.PendingCount())
 }
