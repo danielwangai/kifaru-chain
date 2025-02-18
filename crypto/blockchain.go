@@ -36,6 +36,14 @@ func (bc *Blockchain) AddBlock(b *Block) error {
 		return err
 	}
 
+	for _, tx := range b.Transactions {
+		bc.logger.Infof("msg: executing code, len: %d, hash: %v", len(tx.Data), tx.Hash(&TxHasher{}))
+		vm := NewVM(tx.Data)
+		if err := vm.Run(); err != nil {
+			return err
+		}
+	}
+
 	// add block
 	return bc.addBlock(b)
 }
